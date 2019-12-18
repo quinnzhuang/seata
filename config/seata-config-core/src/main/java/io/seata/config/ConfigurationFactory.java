@@ -19,6 +19,8 @@ import java.util.Objects;
 
 import io.seata.common.exception.NotSupportYetException;
 import io.seata.common.loader.EnhancedServiceLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The type Configuration factory.
@@ -27,30 +29,47 @@ import io.seata.common.loader.EnhancedServiceLoader;
  * @author Geng Zhang
  */
 public final class ConfigurationFactory {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationFactory.class);
+
     private static final String REGISTRY_CONF_PREFIX = "registry";
     private static final String REGISTRY_CONF_SUFFIX = ".conf";
-    private static final String ENV_SYSTEM_KEY = "SEATA_CONFIG_ENV";
-    private static final String ENV_PROPERTY_KEY = "seataConfigEnv";
-    private static final String DEFAULT_ENV_VALUE = "default";
-    /**
-     * The constant FILE_INSTANCE.
-     */
-    private static String envValue;
+    private static final String ENV_SYSTEM_KEY = "SEATA_ENV";
+    public static final String ENV_PROPERTY_KEY = "seataEnv";
+
+    private static final String SYSTEM_PROPERTY_SEATA_CONFIG_NAME = "seata.config.name";
+
+    private static final String ENV_SEATA_CONFIG_NAME = "SEATA_CONFIG_NAME";
+
+    public static final Configuration CURRENT_FILE_INSTANCE;
 
     static {
-        String env = System.getenv(ENV_SYSTEM_KEY);
-        if (env != null && System.getProperty(ENV_PROPERTY_KEY) == null) {
-            //Help users get
-            System.setProperty(ENV_PROPERTY_KEY, env);
+        String seataConfigName = System.getProperty(SYSTEM_PROPERTY_SEATA_CONFIG_NAME);
+        if (null == seataConfigName) {
+            seataConfigName = System.getenv(ENV_SEATA_CONFIG_NAME);
         }
-        envValue = System.getProperty(ENV_PROPERTY_KEY);
+        if (null == seataConfigName) {
+            seataConfigName = REGISTRY_CONF_PREFIX;
+        }
+        String envValue = System.getProperty(ENV_PROPERTY_KEY);
+        if (null == envValue) {
+            envValue = System.getenv(ENV_SYSTEM_KEY);
+        }
+        Configuration configuration = (null == envValue) ? new FileConfiguration(seataConfigName + REGISTRY_CONF_SUFFIX,
+            false) : new FileConfiguration(seataConfigName + "-" + envValue + REGISTRY_CONF_SUFFIX, false);
+        Configuration extConfiguration = null;
+        try {
+            extConfiguration = EnhancedServiceLoader.load(ExtConfigurationProvider.class).provide(configuration);
+            if (LOGGER.isInfoEnabled()) {
+                LOGGER.info("load extConfiguration:{}",
+                    extConfiguration == null ? null : extConfiguration.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            LOGGER.warn("failed to load extConfiguration:{}", e.getMessage(), e);
+        }
+        CURRENT_FILE_INSTANCE = null == extConfiguration ? configuration : extConfiguration;
     }
 
-    private static final Configuration DEFAULT_FILE_INSTANCE = new FileConfiguration(
-        REGISTRY_CONF_PREFIX + REGISTRY_CONF_SUFFIX);
-    public static final Configuration CURRENT_FILE_INSTANCE = (envValue == null || DEFAULT_ENV_VALUE.equals(envValue))
-        ? DEFAULT_FILE_INSTANCE : new FileConfiguration(REGISTRY_CONF_PREFIX + "-" + envValue
-        + REGISTRY_CONF_SUFFIX);
     private static final String NAME_KEY = "name";
     private static final String FILE_TYPE = "file";
 
@@ -85,10 +104,21 @@ public final class ConfigurationFactory {
         }
         if (ConfigType.File == configType) {
             String pathDataId = ConfigurationKeys.FILE_ROOT_CONFIG + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR
-                + FILE_TYPE + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR
-                + NAME_KEY;
+                + FILE_TYPE + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR + NAME_KEY;
             String name = CURRENT_FILE_INSTANCE.getConfig(pathDataId);
-            return new FileConfiguration(name);
+            Configuration configuration = new FileConfiguration(name);
+            Configuration extConfiguration = null;
+            try {
+                extConfiguration = EnhancedServiceLoader.load(ExtConfigurationProvider.class).provide(configuration);
+                if (LOGGER.isInfoEnabled()) {
+                    LOGGER.info("load extConfiguration:{}",
+                        extConfiguration == null ? null : extConfiguration.getClass().getSimpleName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn("failed to load extConfiguration:{}", e.getMessage(), e);
+            }
+
+            return null == extConfiguration ? configuration : extConfiguration;
         } else {
             return EnhancedServiceLoader.load(ConfigurationProvider.class, Objects.requireNonNull(configType).name())
                 .provide();

@@ -24,6 +24,8 @@ import io.seata.core.rpc.netty.ShutdownHook;
 import io.seata.server.coordinator.DefaultCoordinator;
 import io.seata.server.metrics.MetricsManager;
 import io.seata.server.session.SessionHolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  * @author jimin.jm @alibaba-inc.com
  */
 public class Server {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
     private static final int MIN_SERVER_POOL_SIZE = 100;
     private static final int MAX_SERVER_POOL_SIZE = 500;
@@ -53,21 +57,21 @@ public class Server {
      * @throws IOException the io exception
      */
     public static void main(String[] args) throws IOException {
+        //initialize the parameter parser
+        //Note that the parameter parser should always be the first line to execute.
+        //Because, here we need to parse the parameters needed for startup.
+        ParameterParser parameterParser = new ParameterParser(args);
+
         //initialize the metrics
         MetricsManager.get().init();
-
-        //initialize the parameter parser
-        ParameterParser parameterParser = new ParameterParser(args);
 
         System.setProperty(ConfigurationKeys.STORE_MODE, parameterParser.getStoreMode());
 
         RpcServer rpcServer = new RpcServer(WORKING_THREADS);
-        //server host
-        rpcServer.setHost(parameterParser.getHost());
         //server port
         rpcServer.setListenPort(parameterParser.getPort());
-        UUIDGenerator.init(1);
-        //log store mode : file、db
+        UUIDGenerator.init(parameterParser.getServerNode());
+        //log store mode : file, db
         SessionHolder.init(parameterParser.getStoreMode());
 
         DefaultCoordinator coordinator = new DefaultCoordinator(rpcServer);
@@ -84,7 +88,12 @@ public class Server {
         }
         XID.setPort(rpcServer.getListenPort());
 
-        rpcServer.init();
+        try {
+            rpcServer.init();
+        } catch (Throwable e) {
+            LOGGER.error("rpcServer init error:{}", e.getMessage(), e);
+            System.exit(-1);
+        }
 
         System.exit(0);
     }

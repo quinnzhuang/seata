@@ -15,13 +15,14 @@
  */
 package io.seata.rm.datasource.sql.druid;
 
-import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
-import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlOutputVisitor;
-import io.seata.rm.datasource.ParametersHolder;
-import io.seata.rm.datasource.sql.SQLRecognizer;
+import com.alibaba.druid.sql.ast.SQLExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBetweenExpr;
+import com.alibaba.druid.sql.ast.expr.SQLBinaryOpExpr;
+import com.alibaba.druid.sql.ast.expr.SQLExistsExpr;
+import com.alibaba.druid.sql.ast.expr.SQLInListExpr;
+import com.alibaba.druid.sql.visitor.SQLASTVisitor;
 
-import java.util.ArrayList;
-import java.util.List;
+import io.seata.rm.datasource.sql.SQLRecognizer;
 
 /**
  * The type Base recognizer.
@@ -56,29 +57,22 @@ public abstract class BaseRecognizer implements SQLRecognizer {
 
     }
 
+    public void executeVisit(SQLExpr where, SQLASTVisitor visitor) {
+        if (where instanceof SQLBinaryOpExpr) {
+            visitor.visit((SQLBinaryOpExpr) where);
+        } else if (where instanceof SQLInListExpr) {
+            visitor.visit((SQLInListExpr) where);
+        } else if (where instanceof SQLBetweenExpr) {
+            visitor.visit((SQLBetweenExpr) where);
+        } else if (where instanceof SQLExistsExpr) {
+            visitor.visit((SQLExistsExpr) where);
+        } else {
+            throw new IllegalArgumentException("unexpected WHERE expr: " + where.getClass().getSimpleName());
+        }
+    }
+
     @Override
     public String getOriginalSQL() {
         return originalSQL;
-    }
-
-    public MySqlOutputVisitor createMySqlOutputVisitor(final ParametersHolder parametersHolder, final ArrayList<List<Object>> paramAppenders, final StringBuffer sb) {
-        MySqlOutputVisitor visitor = new MySqlOutputVisitor(sb) {
-
-            @Override
-            public boolean visit(SQLVariantRefExpr x) {
-                if ("?".equals(x.getName())) {
-                    ArrayList<Object> oneParamValues = parametersHolder.getParameters()[x.getIndex()];
-                    if (paramAppenders.size() == 0) {
-                        oneParamValues.stream().forEach(t -> paramAppenders.add(new ArrayList<>()));
-                    }
-                    for (int i = 0; i < oneParamValues.size(); i++) {
-                        paramAppenders.get(i).add(oneParamValues.get(i));
-                    }
-
-                }
-                return super.visit(x);
-            }
-        };
-        return visitor;
     }
 }

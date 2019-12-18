@@ -15,6 +15,7 @@
  */
 package io.seata.rm.datasource.undo.mysql.keyword;
 
+import com.alibaba.druid.util.JdbcConstants;
 import io.seata.rm.datasource.undo.KeywordChecker;
 
 import java.util.Arrays;
@@ -22,33 +23,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The type My sql keyword checker.
+ * The type MySQL keyword checker.
  *
  * @author xingfudeshi@gmail.com
  * @date 2019/3/5 MySQL keyword checker
  */
 public class MySQLKeywordChecker implements KeywordChecker {
-    private static volatile KeywordChecker keywordChecker = null;
-    private static volatile Set<String> keywordSet = null;
+    private static Set<String> keywordSet;
 
-    private MySQLKeywordChecker() {
-    }
-
-    /**
-     * get instance of type MySQL keyword checker
-     *
-     * @return instance
-     */
-    public static KeywordChecker getInstance() {
-        if (keywordChecker == null) {
-            synchronized (MySQLKeywordChecker.class) {
-                if (keywordChecker == null) {
-                    keywordChecker = new MySQLKeywordChecker();
-                    keywordSet = Arrays.stream(MySQLKeyword.values()).map(MySQLKeyword::name).collect(Collectors.toSet());
-                }
-            }
-        }
-        return keywordChecker;
+    static {
+        keywordSet = Arrays.stream(MySQLKeyword.values()).map(MySQLKeyword::name).collect(Collectors.toSet());
     }
 
     /**
@@ -1133,6 +1117,12 @@ public class MySQLKeywordChecker implements KeywordChecker {
     @Override
     public String checkAndReplace(String fieldOrTableName) {
         return check(fieldOrTableName) ? "`" + fieldOrTableName + "`" : fieldOrTableName;
+    }
+
+    @Override
+    public String getDbType()
+    {
+        return JdbcConstants.MYSQL;
     }
 
 }

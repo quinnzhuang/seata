@@ -23,11 +23,10 @@ import java.time.Duration;
 /**
  * The type Abstract configuration.
  *
- * @param <T> the type parameter
  * @author jimin.jm @alibaba-inc.com
  * @date 2019 /2/1
  */
-public abstract class AbstractConfiguration<T> implements Configuration<T> {
+public abstract class AbstractConfiguration implements Configuration {
 
     /**
      * The constant DEFAULT_CONFIG_TIMEOUT.
@@ -94,7 +93,7 @@ public abstract class AbstractConfiguration<T> implements Configuration<T> {
 
     @Override
     public Duration getDuration(String dataId, Duration defaultValue, long timeoutMills) {
-        String result = getConfig(dataId, String.valueOf(defaultValue.toMillis() + "ms"), timeoutMills);
+        String result = getConfig(dataId, defaultValue.toMillis() + "ms", timeoutMills);
         return DurationUtil.parse(result);
     }
 
